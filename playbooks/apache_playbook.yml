@@ -1,15 +1,3 @@
----
-
-- hosts: all
-  become: true
-  pre_tasks:
-  
-  - name: update packages
-    tags: always
-    apt:
-      update_cache: yes
-      upgrade: dist
-
 - hosts: games
   become: true
   tasks:
