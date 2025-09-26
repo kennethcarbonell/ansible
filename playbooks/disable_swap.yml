@@ -1,0 +1,17 @@
+---
+
+- hosts: nodes
+  become: true
+  pre_tasks:
+
+  - name: Disable swap for session
+    command: swapoff -a
+
+  tasks:
+  
+  - name: Disable swap with regex
+    ansible.builtin.replace:
+      path: /etc/fstab
+      regexp: '^(\s*)([^#\n]+\s+)(\w+\s+)swap(\s+.*)$'
+      replace: '#\1\2\3swap\4'
+      backup: true
