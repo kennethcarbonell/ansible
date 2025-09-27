@@ -1,0 +1,95 @@
+---
+- hosts: k8
+  become: true
+  tasks:
+    - name: Install required packages
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+        state: present
+        update_cache: yes
+
+    - name: Add Docker’s official GPG key
+      ansible.builtin.apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker apt repository
+      ansible.builtin.apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_lsb.codename }} stable"
+        state: present
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install containerd package
+      package:
+        name: containerd.io
+        state: present
+
+    - name: Create containerd configuration directory if it doesn't exist
+      file:
+        path: ~/etc/containerd
+        state: directory
+        mode: '0755'
+
+    - name: Generate default containerd configuration
+      shell: containerd config default > ~/etc/containerd/config.toml
+      args:
+        creates: ~/etc/containerd/config.toml
+
+    - name: Configure containerd to use systemd cgroup driver
+      become: true
+      lineinfile:
+        path: /etc/containerd/config.toml
+        regexp: '^(.*)SystemdCgroup = false(.*)$'
+        line: '\1SystemdCgroup = true\2'
+        backrefs: yes
+      notify: Restart containerd
+
+    - name: Enable and start containerd service
+      systemd:
+        name: containerd
+        state: started
+        enabled: yes
+    
+    - name: Enable ipv4 forwarding
+      become: true
+      lineinfile:
+        path: /etc/sysctl.conf
+        regexp: '^\s*#?\s*(net\.ipv4\.ip_forward\s*=\s*1)$'
+        line: 'net.ipv4.ip_forward=1'
+        state: present
+        backrefs: no
+
+    - name: Apply sysctl changes immediately
+      become: true
+      command: sysctl -p
+
+    - name: Create modules directory if it doesn't exist
+      file:
+        path: ~/etc/modules-load.d
+        state: directory
+        mode: '0755'
+
+    - name: Add br_netfilter to k8s.conf file
+      copy:
+        dest: ~/etc/modules-load.d/k8s.conf
+        content: "br_netfilter"
+        mode: '0755'
+
+    - name: Reboot the system if everything succeeded
+      become: true
+      reboot:
+        reboot_timeout: 300
+
+  handlers:
+    - name: Restart containerd
+      systemd:
+        name: containerd
+        state: restarted
