@@ -4,7 +4,7 @@ Ansible personal lab experiment
 
 This is the current command I am using to test ssh for ansible:
 
-ansible all -m ping
+ansible -i ~/github/ansible/inv all -m ping
 
 Current command to run playbooks:
 
