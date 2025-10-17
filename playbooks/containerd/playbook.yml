@@ -1,5 +1,5 @@
 ---
-- hosts: k8
+- hosts: nodes
   become: true
   tasks:
     - name: Install required packages
@@ -38,10 +38,17 @@
         state: directory
         mode: '0755'
 
-    - name: Generate default containerd configuration
-      shell: containerd config default > ~/etc/containerd/config.toml
-      args:
-        creates: ~/etc/containerd/config.toml
+    - name: Generate default containerd config
+      command: containerd config default
+      register: containerd_config
+
+    - name: Write containerd config to /etc/containerd/config.toml
+      copy:
+        dest: /etc/containerd/config.toml
+        content: "{{ containerd_config.stdout }}"
+        owner: root
+        group: root
+        mode: '0755'
 
     - name: Configure containerd to use systemd cgroup driver
       become: true
@@ -57,6 +64,16 @@
         name: containerd
         state: started
         enabled: yes
+
+    - name: Disable swap for session
+      command: swapoff -a
+    
+    - name: Disable swap with regex
+      ansible.builtin.replace:
+        path: /etc/fstab
+        regexp: '^(\s*)([^#\n]+\s+)(\w+\s+)swap(\s+.*)$'
+        replace: '#\1\2\3swap\4'
+        backup: true       
     
     - name: Enable ipv4 forwarding
       become: true
@@ -78,6 +95,7 @@
         mode: '0755'
 
     - name: Add br_netfilter to k8s.conf file
+      become: true
       copy:
         dest: ~/etc/modules-load.d/k8s.conf
         content: "br_netfilter"
